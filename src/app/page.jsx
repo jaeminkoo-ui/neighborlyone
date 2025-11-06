@@ -1,6 +1,20 @@
 import { Link } from "react-router";
+import { useState, useEffect } from "react";
+import { isAuthenticated, getCurrentUser, getCurrentBusiness } from "./utils/auth";
 
 export default function Page() {
+  const [user, setUser] = useState(null);
+  const [business, setBusiness] = useState(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    if (isAuthenticated()) {
+      setUser(getCurrentUser());
+      setBusiness(getCurrentBusiness());
+    }
+  }, []);
+
   return (
     <div className="relative flex min-h-screen w-full flex-col bg-gray-50">
       {/* Navigation */}
@@ -27,16 +41,31 @@ export default function Page() {
               <Link to="/about" className="text-sm font-medium text-gray-600 hover:text-blue-500">
                 About Us
               </Link>
-              <Link to="/login" className="text-sm font-medium text-gray-600 hover:text-blue-500">
-                Login
-              </Link>
+              {mounted && user ? (
+                <Link to="/dashboard" className="text-sm font-medium text-gray-600 hover:text-blue-500">
+                  My Dashboard
+                </Link>
+              ) : (
+                <Link to="/login" className="text-sm font-medium text-gray-600 hover:text-blue-500">
+                  Login
+                </Link>
+              )}
             </div>
-            <Link
-              to="/signup"
-              className="flex min-w-[84px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 px-4 bg-blue-500 text-white text-sm font-bold hover:bg-blue-600 transition-colors"
-            >
-              Start Free Tier
-            </Link>
+            {mounted && user ? (
+              <Link
+                to="/dashboard"
+                className="flex min-w-[84px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 px-4 bg-blue-500 text-white text-sm font-bold hover:bg-blue-600 transition-colors"
+              >
+                Dashboard
+              </Link>
+            ) : (
+              <Link
+                to="/signup"
+                className="flex min-w-[84px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 px-4 bg-blue-500 text-white text-sm font-bold hover:bg-blue-600 transition-colors"
+              >
+                Start Free Tier
+              </Link>
+            )}
           </div>
         </div>
       </header>

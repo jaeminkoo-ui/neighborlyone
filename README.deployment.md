@@ -287,3 +287,11 @@ Once deployed, your application will be accessible at:
 
 The application will automatically restart if the server reboots thanks to PM2.
 
+
+
+
+
+
+
+
+

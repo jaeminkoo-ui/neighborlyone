@@ -1,79 +1,99 @@
 import sql from "../utils/sql.js";
 
-// GET all active coupons
+// GET /api/coupons - Fetch all coupons for a business
 export async function GET(request) {
   try {
     const url = new URL(request.url);
-    const category = url.searchParams.get("category");
-    const businessId = url.searchParams.get("businessId");
+    const business_id = url.searchParams.get("business_id");
 
-    let query = sql`
+    if (!business_id) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: "business_id is required",
+        }),
+        {
+          status: 400,
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    // Fetch coupons for the business
+    const coupons = await sql`
       SELECT 
-        c.*,
-        b.name as business_name,
-        b.address as business_address,
-        b.latitude,
-        b.longitude,
-        b.category as business_category,
-        (SELECT COUNT(*) FROM coupon_impressions WHERE coupon_id = c.id) as impressions,
-        (SELECT COUNT(*) FROM saved_coupons WHERE coupon_id = c.id) as saves,
-        (SELECT COUNT(*) FROM coupon_redemptions WHERE coupon_id = c.id) as redemptions
-      FROM coupons c
-      JOIN businesses b ON c.business_id = b.id
-      WHERE c.is_active = true
-      AND c.expiration_date >= CURRENT_DATE
+        id,
+        business_id,
+        title,
+        description,
+        code,
+        discount_type,
+        discount_value,
+        expiration_date,
+        status,
+        terms_and_conditions,
+        start_date,
+        usage_limit_per_user,
+        total_usage_limit,
+        current_usage_count,
+        created_at,
+        updated_at
+      FROM coupons
+      WHERE business_id = ${business_id}
+      ORDER BY created_at DESC
     `;
 
-    if (category) {
-      query = sql`
-        SELECT 
-          c.*,
-          b.name as business_name,
-          b.address as business_address,
-          b.latitude,
-          b.longitude,
-          b.category as business_category,
-          (SELECT COUNT(*) FROM coupon_impressions WHERE coupon_id = c.id) as impressions,
-          (SELECT COUNT(*) FROM saved_coupons WHERE coupon_id = c.id) as saves,
-          (SELECT COUNT(*) FROM coupon_redemptions WHERE coupon_id = c.id) as redemptions
-        FROM coupons c
-        JOIN businesses b ON c.business_id = b.id
-        WHERE c.is_active = true
-        AND c.expiration_date >= CURRENT_DATE
-        AND c.category = ${category}
+    // Get redemption counts and views for each coupon
+    const couponIds = coupons.map(c => c.id);
+    let redemptions = [];
+    let impressions = [];
+    
+    if (couponIds.length > 0) {
+      redemptions = await sql`
+        SELECT coupon_id, COUNT(*) as redeemed
+        FROM coupon_redemptions
+        WHERE coupon_id = ANY(${couponIds})
+        GROUP BY coupon_id
+      `;
+      
+      impressions = await sql`
+        SELECT coupon_id, COUNT(*) as views
+        FROM coupon_impressions
+        WHERE coupon_id = ANY(${couponIds})
+        GROUP BY coupon_id
       `;
     }
 
-    if (businessId) {
-      query = sql`
-        SELECT 
-          c.*,
-          b.name as business_name,
-          b.address as business_address,
-          b.latitude,
-          b.longitude,
-          b.category as business_category,
-          (SELECT COUNT(*) FROM coupon_impressions WHERE coupon_id = c.id) as impressions,
-          (SELECT COUNT(*) FROM saved_coupons WHERE coupon_id = c.id) as saves,
-          (SELECT COUNT(*) FROM coupon_redemptions WHERE coupon_id = c.id) as redemptions
-        FROM coupons c
-        JOIN businesses b ON c.business_id = b.id
-        WHERE c.is_active = true
-        AND c.expiration_date >= CURRENT_DATE
-        AND c.business_id = ${businessId}
-      `;
-    }
-
-    const coupons = await query;
-
-    return new Response(JSON.stringify(coupons), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
+    // Merge redemption counts and views
+    const couponsWithStats = coupons.map(coupon => {
+      const redemption = redemptions.find(r => r.coupon_id === coupon.id);
+      const impression = impressions.find(i => i.coupon_id === coupon.id);
+      return {
+        ...coupon,
+        redeemed: redemption ? parseInt(redemption.redeemed) : 0,
+        views: impression ? parseInt(impression.views) : 0,
+        is_active: coupon.status === 'active',
+        terms_conditions: coupon.terms_and_conditions,
+      };
     });
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        coupons: couponsWithStats,
+      }),
+      {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }
+    );
   } catch (error) {
     console.error("Error fetching coupons:", error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({
+        success: false,
+        error: error.message,
+      }),
       {
         status: 500,
         headers: { "Content-Type": "application/json" },
@@ -82,45 +102,86 @@ export async function GET(request) {
   }
 }
 
-// POST - Create new coupon (for business owners)
+// POST /api/coupons - Create a new coupon
 export async function POST(request) {
   try {
-    const data = await request.json();
+    const body = await request.json();
     const {
       business_id,
       title,
       description,
+      code,
       discount_type,
       discount_value,
-      category,
-      terms,
-      coupon_code,
-      usage_limit,
       expiration_date,
-      image_url,
-    } = data;
+      is_active = true,
+      terms_conditions,
+      start_date,
+    } = body;
 
+    // Validation
+    if (!business_id || !title || !code || !expiration_date) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: "Missing required fields: business_id, title, code, expiration_date",
+        }),
+        {
+          status: 400,
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    // Convert is_active boolean to status enum
+    const status = is_active ? 'active' : 'draft';
+
+    // Insert coupon
     const result = await sql`
       INSERT INTO coupons (
-        business_id, title, description, discount_type, discount_value,
-        category, terms, coupon_code, usage_limit, expiration_date, image_url, is_active
-      )
-      VALUES (
-        ${business_id}, ${title}, ${description}, ${discount_type}, ${discount_value},
-        ${category}, ${terms || null}, ${coupon_code}, ${usage_limit || 0}, 
-        ${expiration_date}, ${image_url || null}, true
+        business_id,
+        title,
+        description,
+        code,
+        discount_type,
+        discount_value,
+        expiration_date,
+        status,
+        terms_and_conditions,
+        start_date
+      ) VALUES (
+        ${business_id},
+        ${title},
+        ${description || ""},
+        ${code},
+        ${discount_type || "percentage"},
+        ${discount_value || 0},
+        ${expiration_date},
+        ${status},
+        ${terms_conditions || ""},
+        ${start_date || new Date().toISOString()}
       )
       RETURNING *
     `;
 
-    return new Response(JSON.stringify(result[0]), {
-      status: 201,
-      headers: { "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({
+        success: true,
+        message: "Coupon created successfully",
+        coupon: result[0],
+      }),
+      {
+        status: 201,
+        headers: { "Content-Type": "application/json" },
+      }
+    );
   } catch (error) {
     console.error("Error creating coupon:", error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({
+        success: false,
+        error: error.message,
+      }),
       {
         status: 500,
         headers: { "Content-Type": "application/json" },
@@ -128,5 +189,3 @@ export async function POST(request) {
     );
   }
 }
-
-

@@ -9,8 +9,8 @@ const __dirname = dirname(__filename);
 
 export async function POST(request) {
   try {
-    // Read the schema file
-    const schemaPath = join(__dirname, "..", "schema.sql");
+    // Read the schema file from project root
+    const schemaPath = join(process.cwd(), "schema.sql");
     const schema = readFileSync(schemaPath, "utf-8");
 
     // Execute the schema
@@ -175,5 +175,9 @@ async function insertSampleData() {
     }
   }
 }
+
+
+
+
 
 

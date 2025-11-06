@@ -80,3 +80,11 @@ echo ""
 echo "📝 View logs with: ${YELLOW}pm2 logs neighborly-web${NC}"
 echo ""
 
+
+
+
+
+
+
+
+

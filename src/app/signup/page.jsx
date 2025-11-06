@@ -1,6 +1,110 @@
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
+import { useState } from "react";
 
 export default function SignUpPage() {
+  const navigate = useNavigate();
+  const [formData, setFormData] = useState({
+    businessName: "",
+    email: "",
+    phone: "",
+    password: "",
+    confirmPassword: "",
+  });
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handleChange = (e) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value,
+    });
+  };
+
+  const handlePhoneChange = (e) => {
+    const input = e.target.value.replace(/\D/g, ""); // Remove all non-digits
+    
+    // Limit to 10 digits
+    const limited = input.slice(0, 10);
+    
+    // Format as (xxx) xxx-xxxx
+    let formatted = "";
+    if (limited.length > 0) {
+      formatted = "(" + limited.slice(0, 3);
+      if (limited.length > 3) {
+        formatted += ") " + limited.slice(3, 6);
+      }
+      if (limited.length > 6) {
+        formatted += "-" + limited.slice(6, 10);
+      }
+    }
+    
+    setFormData({
+      ...formData,
+      phone: formatted,
+    });
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+
+    // Validate passwords match
+    if (formData.password !== formData.confirmPassword) {
+      setError("Passwords do not match");
+      return;
+    }
+
+    // Validate password length
+    if (formData.password.length < 6) {
+      setError("Password must be at least 6 characters");
+      return;
+    }
+
+    // Validate phone number (must be 10 digits)
+    const phoneDigits = formData.phone.replace(/\D/g, "");
+    if (phoneDigits.length !== 10) {
+      setError("Phone number must be 10 digits");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      console.log("🚀 Submitting signup form...");
+      const response = await fetch("/api/auth/signup", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: formData.email,
+          password: formData.password,
+          name: formData.businessName, // Use business name as owner name
+          businessName: formData.businessName,
+          phone: formData.phone,
+        }),
+      });
+
+      console.log("📡 Response status:", response.status);
+      const data = await response.json();
+      console.log("📦 Response data:", data);
+
+      if (!response.ok) {
+        throw new Error(data.error || `Server error: ${response.status}`);
+      }
+
+      // Success! Redirect to login page
+      console.log("✅ Signup successful, navigating to login...");
+      alert("Account created successfully! Please sign in.");
+      navigate("/login");
+    } catch (err) {
+      console.error("❌ Signup error:", err);
+      setError(err.message || "Failed to create account. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="relative flex min-h-screen w-full flex-col bg-gray-50">
       {/* Navigation */}
@@ -34,7 +138,13 @@ export default function SignUpPage() {
               <p className="text-gray-600">Create your business account today</p>
             </div>
 
-            <form className="space-y-5">
+            {error && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-sm text-red-600">{error}</p>
+              </div>
+            )}
+
+            <form onSubmit={handleSubmit} className="space-y-5">
               {/* Business Name */}
               <div>
                 <label htmlFor="businessName" className="block text-sm font-medium text-gray-700 mb-2">
@@ -44,23 +154,10 @@ export default function SignUpPage() {
                   type="text"
                   id="businessName"
                   name="businessName"
+                  value={formData.businessName}
+                  onChange={handleChange}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-colors"
                   placeholder="Your Business Name"
-                  required
-                />
-              </div>
-
-              {/* Owner Name */}
-              <div>
-                <label htmlFor="ownerName" className="block text-sm font-medium text-gray-700 mb-2">
-                  Your Name
-                </label>
-                <input
-                  type="text"
-                  id="ownerName"
-                  name="ownerName"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-colors"
-                  placeholder="John Doe"
                   required
                 />
               </div>
@@ -74,6 +171,8 @@ export default function SignUpPage() {
                   type="email"
                   id="email"
                   name="email"
+                  value={formData.email}
+                  onChange={handleChange}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-colors"
                   placeholder="you@business.com"
                   required
@@ -89,10 +188,14 @@ export default function SignUpPage() {
                   type="tel"
                   id="phone"
                   name="phone"
+                  value={formData.phone}
+                  onChange={handlePhoneChange}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-colors"
                   placeholder="(555) 123-4567"
+                  maxLength="14"
                   required
                 />
+                <p className="text-xs text-gray-500 mt-1">Enter 10 digits (will auto-format)</p>
               </div>
 
               {/* Password Field */}
@@ -104,6 +207,8 @@ export default function SignUpPage() {
                   type="password"
                   id="password"
                   name="password"
+                  value={formData.password}
+                  onChange={handleChange}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-colors"
                   placeholder="••••••••"
                   required
@@ -119,6 +224,8 @@ export default function SignUpPage() {
                   type="password"
                   id="confirmPassword"
                   name="confirmPassword"
+                  value={formData.confirmPassword}
+                  onChange={handleChange}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-colors"
                   placeholder="••••••••"
                   required
@@ -148,9 +255,10 @@ export default function SignUpPage() {
               {/* Submit Button */}
               <button
                 type="submit"
-                className="w-full bg-blue-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-600 transition-colors"
+                disabled={loading}
+                className="w-full bg-blue-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-600 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
               >
-                Create Account
+                {loading ? "Creating Account..." : "Create Account"}
               </button>
             </form>
 
@@ -176,5 +284,9 @@ export default function SignUpPage() {
     </div>
   );
 }
+
+
+
+
 
 

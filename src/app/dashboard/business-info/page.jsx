@@ -1,129 +1,301 @@
 import { Link } from "react-router";
+import { useState, useEffect } from "react";
+import { requireAuth, getCurrentUser, getCurrentBusiness, logout } from "../../utils/auth";
+import { useNavigate } from "react-router";
+
+// NavItem component
+const NavItem = ({ href, icon, label, active }) => {
+  const baseClasses = "flex items-center gap-3 px-4 py-3 rounded-lg transition-colors font-medium";
+  const activeClasses = active
+    ? "bg-blue-50 text-blue-600"
+    : "text-gray-700 hover:bg-gray-50";
+
+  return (
+    <Link to={href} className={`${baseClasses} ${activeClasses}`}>
+      <span className="text-xl">{icon}</span>
+      <span className="text-sm">{label}</span>
+    </Link>
+  );
+};
+
+const DAYS_OF_WEEK = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
 export default function BusinessInfoPage() {
+  const navigate = useNavigate();
+  const [user, setUser] = useState(null);
+  const [business, setBusiness] = useState(null);
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+  const [mounted, setMounted] = useState(false);
+  
+  // Form states
+  const [formData, setFormData] = useState({
+    businessName: '',
+    businessDescription: '',
+    category: 'Food',
+    phoneNumber: '',
+    streetAddress1: '',
+    streetAddress2: '',
+    zipCode: '',
+    city: '',
+    state: '',
+    latitude: '',
+    longitude: '',
+  });
+  
+  const [businessHours, setBusinessHours] = useState({
+    Monday: { from: '09:00', to: '18:00', closed: false },
+    Tuesday: { from: '09:00', to: '18:00', closed: false },
+    Wednesday: { from: '09:00', to: '18:00', closed: false },
+    Thursday: { from: '09:00', to: '18:00', closed: false },
+    Friday: { from: '09:00', to: '18:00', closed: false },
+    Saturday: { from: '09:00', to: '18:00', closed: false },
+    Sunday: { from: '09:00', to: '18:00', closed: false },
+  });
+
+  useEffect(() => {
+    setMounted(true);
+    const currentUser = getCurrentUser();
+    const currentBusiness = getCurrentBusiness();
+    setUser(currentUser);
+    setBusiness(currentBusiness);
+    
+    if (currentBusiness) {
+      setFormData({
+        businessName: currentBusiness.name || '',
+        businessDescription: currentBusiness.description || '',
+        category: currentBusiness.category || 'Food',
+        phoneNumber: currentBusiness.phone || '',
+        streetAddress1: currentBusiness.street_address_1 || '',
+        streetAddress2: currentBusiness.street_address_2 || '',
+        zipCode: currentBusiness.postal_code || '',
+        city: currentBusiness.city || '',
+        state: currentBusiness.state || '',
+        latitude: currentBusiness.latitude || '',
+        longitude: currentBusiness.longitude || '',
+      });
+      
+      // Parse hours
+      if (currentBusiness.hours) {
+        try {
+          const parsed = typeof currentBusiness.hours === 'string' ? JSON.parse(currentBusiness.hours) : currentBusiness.hours;
+          setBusinessHours(parsed);
+        } catch (e) {
+          console.error('Error parsing hours:', e);
+        }
+      }
+      
+      // Set image preview
+      if (currentBusiness.cover_image_url) {
+        setImagePreview(currentBusiness.cover_image_url);
+      }
+    }
+    
+    if (!currentUser) {
+      requireAuth(navigate);
+    }
+  }, [navigate]);
+
+  const handleInputChange = async (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+    
+    // Auto-fill city and state based on zip code
+    if (name === 'zipCode' && value.length === 5) {
+      try {
+        const response = await fetch(`https://api.zippopotam.us/us/${value}`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.places && data.places.length > 0) {
+            const place = data.places[0];
+            setFormData(prev => ({
+              ...prev,
+              city: place['place name'],
+              state: place['state abbreviation'],
+              latitude: place.latitude,
+              longitude: place.longitude
+            }));
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching zip code data:', error);
+      }
+    }
+  };
+
+  const handleHourChange = (day, field, value) => {
+    setBusinessHours(prev => ({
+      ...prev,
+      [day]: { ...prev[day], [field]: value }
+    }));
+  };
+
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        alert("Image must be less than 5MB");
+        return;
+      }
+      if (!file.type.startsWith("image/")) {
+        alert("Please upload an image file");
+        return;
+      }
+      setImageFile(file);
+      setImagePreview(URL.createObjectURL(file));
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    try {
+      let imageUrl = business?.cover_image_url || '';
+      if (imageFile) {
+        const reader = new FileReader();
+        imageUrl = await new Promise((resolve, reject) => {
+          reader.onloadend = () => resolve(reader.result);
+          reader.onerror = reject;
+          reader.readAsDataURL(imageFile);
+        });
+      }
+      
+      const updateData = {
+        id: business.id,
+        name: formData.businessName,
+        description: formData.businessDescription,
+        category: formData.category,
+        phone: formData.phoneNumber,
+        email: business.email, // Keep existing email
+        street_address_1: formData.streetAddress1,
+        street_address_2: formData.streetAddress2,
+        city: formData.city,
+        state: formData.state,
+        postal_code: formData.zipCode,
+        latitude: formData.latitude,
+        longitude: formData.longitude,
+        hours: businessHours,
+        cover_image_url: imageUrl
+      };
+      
+      console.log('Submitting:', updateData);
+      
+      const response = await fetch('/api/businesses', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updateData)
+      });
+      
+      const result = await response.json();
+      
+      if (response.ok) {
+        localStorage.setItem('currentBusiness', JSON.stringify(result));
+        setBusiness(result);
+        
+        // Update image preview
+        if (result.cover_image_url) {
+          setImagePreview(result.cover_image_url);
+        }
+        
+        alert('Business information updated successfully!');
+      } else {
+        alert(`Error: ${result.error || 'Failed to update'}`);
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      alert('An error occurred');
+    }
+  };
+
+  const handleLogout = () => {
+    logout();
+    navigate("/login");
+  };
+
+  if (!mounted || !user || !business) {
+    return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
+  }
+
   return (
-    <div className="flex min-h-screen bg-gray-50">
-      {/* Sidebar */}
+    <div className="flex h-screen bg-gray-50">
       <aside className="w-64 bg-white border-r border-gray-200 flex flex-col">
-        {/* Logo */}
         <div className="p-6 border-b border-gray-200">
-          <Link to="/" className="flex items-center gap-3">
-            <div className="w-8 h-8 text-blue-500">
-              <svg fill="none" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
-                <path
-                  clipRule="evenodd"
-                  d="M39.475 21.6262C40.358 21.4363 40.6863 21.5589 40.7581 21.5934C40.7876 21.655 40.8547 21.857 40.8082 22.3336C40.7408 23.0255 40.4502 24.0046 39.8572 25.2301C38.6799 27.6631 36.5085 30.6631 33.5858 33.5858C30.6631 36.5085 27.6632 38.6799 25.2301 39.8572C24.0046 40.4502 23.0255 40.7407 22.3336 40.8082C21.8571 40.8547 21.6551 40.7875 21.5934 40.7581C21.5589 40.6863 21.4363 40.358 21.6262 39.475C21.8562 38.4054 22.4689 36.9657 23.5038 35.2817C24.7575 33.2417 26.5497 30.9744 28.7621 28.762C30.9744 26.5497 33.2417 24.7574 35.2817 23.5037C36.9657 22.4689 38.4054 21.8562 39.475 21.6262ZM4.41189 29.2403L18.7597 43.5881C19.8813 44.7097 21.4027 44.9179 22.7217 44.7893C24.0585 44.659 25.5148 44.1631 26.9723 43.4579C29.9052 42.0387 33.2618 39.5667 36.4142 36.4142C39.5667 33.2618 42.0387 29.9052 43.4579 26.9723C44.1631 25.5148 44.659 24.0585 44.7893 22.7217C44.9179 21.4027 44.7097 19.8813 43.5881 18.7597L29.2403 4.41187C27.8527 3.02428 25.8765 3.02573 24.2861 3.36776C22.6081 3.72863 20.7334 4.58419 18.8396 5.74801C16.4978 7.18716 13.9881 9.18353 11.5858 11.5858C9.18354 13.988 7.18717 16.4978 5.74802 18.8396C4.58421 20.7334 3.72865 22.6081 3.36778 24.2861C3.02574 25.8765 3.02429 27.8527 4.41189 29.2403Z"
-                  fill="currentColor"
-                  fillRule="evenodd"
-                />
-              </svg>
-            </div>
-            <span className="text-lg font-bold text-gray-900">NeighborlyOne</span>
+          <Link to="/dashboard" className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-blue-500 rounded-lg"></div>
+            <span className="font-bold text-xl">NeighborlyOne</span>
           </Link>
         </div>
 
-        {/* Navigation */}
-        <nav className="flex-1 p-4">
-          <Link
-            to="/dashboard"
-            className="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-gray-50 rounded-lg mb-1 transition-colors"
-          >
-            <span className="text-xl">📊</span>
-            <span className="font-medium">Dashboard</span>
-          </Link>
-          <Link
-            to="/dashboard/coupons"
-            className="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-gray-50 rounded-lg mb-1 transition-colors"
-          >
-            <span className="text-xl">🎫</span>
-            <span className="font-medium">Coupons</span>
-          </Link>
-          <Link
-            to="/dashboard/business-info"
-            className="flex items-center gap-3 px-4 py-3 bg-blue-50 text-blue-600 rounded-lg mb-1 transition-colors"
-          >
-            <span className="text-xl">🏢</span>
-            <span className="font-medium">Business Info</span>
-          </Link>
-          <Link
-            to="/dashboard/analytics"
-            className="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-gray-50 rounded-lg mb-1 transition-colors"
-          >
-            <span className="text-xl">📈</span>
-            <span className="font-medium">Analytics</span>
-          </Link>
-          <Link
-            to="/dashboard/settings"
-            className="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-gray-50 rounded-lg mb-1 transition-colors"
-          >
-            <span className="text-xl">⚙️</span>
-            <span className="font-medium">Settings</span>
-          </Link>
+        <nav className="flex-1 p-4 space-y-2">
+          <NavItem href="/dashboard" icon="📊" label="Dashboard" />
+          <NavItem href="/dashboard/business-info" icon="🏢" label="Business Info" active />
+          <NavItem href="/dashboard/coupons" icon="🎫" label="Coupons" />
+          {/* <NavItem href="/dashboard/analytics" icon="📈" label="Analytics" /> */}
+          {/* <NavItem href="/dashboard/settings" icon="⚙️" label="Settings" /> */}
         </nav>
 
-        {/* User Info */}
-        <div className="p-4 border-t border-gray-200">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 rounded-full bg-blue-500 text-white flex items-center justify-center font-bold">
-              M
+        <div className="p-4 border-t border-gray-200 space-y-3">
+          <div className="flex items-center gap-3 px-4">
+            <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold">
+              {business.name.charAt(0)}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-gray-900 truncate">Mario's Pizzeria</p>
-              <p className="text-xs text-gray-500 truncate">owner@marios.com</p>
+              <p className="text-sm font-medium text-gray-900 truncate">{business.name}</p>
+              <p className="text-xs text-gray-500 truncate">{user.email}</p>
             </div>
           </div>
-          <button className="w-full px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded-lg transition-colors">
+          <button
+            onClick={handleLogout}
+            className="w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors text-left"
+          >
             Sign Out
           </button>
         </div>
       </aside>
 
-      {/* Main Content */}
       <main className="flex-1 overflow-auto">
         <div className="max-w-4xl mx-auto p-8">
-          {/* Header */}
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-gray-900 mb-2">Business Information</h1>
             <p className="text-gray-600">Manage your business profile and contact information</p>
           </div>
 
-          {/* Form */}
-          <form className="space-y-8">
+          <form onSubmit={handleSubmit} className="space-y-8">
             {/* Basic Information */}
             <div className="bg-white rounded-xl border border-gray-200 p-6">
               <h2 className="text-xl font-bold text-gray-900 mb-6">Basic Information</h2>
               
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Business Name *
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Business Name *</label>
                   <input
                     type="text"
-                    defaultValue="Mario's Pizzeria"
+                    name="businessName"
+                    value={formData.businessName}
+                    onChange={handleInputChange}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Your business name"
+                    required
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Business Description *
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Business Description *</label>
                   <textarea
+                    name="businessDescription"
+                    value={formData.businessDescription}
+                    onChange={handleInputChange}
                     rows={4}
-                    defaultValue="Authentic Italian pizza made with fresh ingredients. Family-owned since 1985."
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-                    placeholder="Tell customers about your business..."
+                    required
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Category *
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Category *</label>
                   <select
-                    defaultValue="Food"
+                    name="category"
+                    value={formData.category}
+                    onChange={handleInputChange}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
                     <option value="Food">Food</option>
@@ -137,16 +309,16 @@ export default function BusinessInfoPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Business Image URL
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Business Image *</label>
                   <input
-                    type="url"
-                    defaultValue="https://images.unsplash.com/photo-1565299624946-b28f40a0ca4b?w=400&h=200&fit=crop"
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageChange}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="https://example.com/image.jpg"
                   />
-                  <p className="text-xs text-gray-500 mt-1">Enter a URL for your business image</p>
+                  {imagePreview && (
+                    <img src={imagePreview} alt="Preview" className="mt-2 h-32 object-cover rounded" />
+                  )}
                 </div>
               </div>
             </div>
@@ -157,88 +329,174 @@ export default function BusinessInfoPage() {
               
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Phone Number *
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Phone Number *</label>
                   <input
                     type="tel"
-                    defaultValue="(555) 123-4567"
+                    name="phoneNumber"
+                    value={formData.phoneNumber}
+                    onChange={handleInputChange}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="(555) 123-4567"
+                    required
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Email Address
-                  </label>
-                  <input
-                    type="email"
-                    defaultValue="owner@marios.com"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="business@example.com"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Business Address *
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Street Address 1 *</label>
                   <input
                     type="text"
-                    defaultValue="123 Main Street, San Francisco, CA 94102"
+                    name="streetAddress1"
+                    value={formData.streetAddress1}
+                    onChange={handleInputChange}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Street address, city, state, zip"
+                    required
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Business Hours
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Street Address 2</label>
                   <input
                     type="text"
-                    defaultValue="Mon-Sun: 11am-10pm"
+                    name="streetAddress2"
+                    value={formData.streetAddress2}
+                    onChange={handleInputChange}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="e.g. Mon-Fri: 9am-6pm, Sat-Sun: 10am-4pm"
                   />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Zip Code *</label>
+                  <input
+                    type="text"
+                    name="zipCode"
+                    value={formData.zipCode}
+                    onChange={handleInputChange}
+                    maxLength="5"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Enter 5-digit zip code"
+                    required
+                  />
+                  <p className="text-xs text-gray-500 mt-1">City and State will be auto-filled</p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">City *</label>
+                    <input
+                      type="text"
+                      name="city"
+                      value={formData.city}
+                      onChange={handleInputChange}
+                      disabled
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">State *</label>
+                    <input
+                      type="text"
+                      name="state"
+                      value={formData.state}
+                      onChange={handleInputChange}
+                      disabled
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed"
+                      required
+                    />
+                  </div>
+                </div>
+
+                {/* Business Hours */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-4">Business Hours</label>
+                  <div className="space-y-3">
+                    {DAYS_OF_WEEK.map((day) => (
+                      <div key={day} className="flex items-center gap-4">
+                        <div className="w-28">
+                          <span className="text-sm text-gray-700 font-medium">{day}</span>
+                        </div>
+                        <div className="flex items-center gap-2 flex-1">
+                          <input
+                            type="time"
+                            value={businessHours[day].from}
+                            onChange={(e) => handleHourChange(day, 'from', e.target.value)}
+                            disabled={businessHours[day].closed}
+                            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm disabled:bg-gray-100"
+                          />
+                          <span className="text-gray-500">to</span>
+                          <input
+                            type="time"
+                            value={businessHours[day].to}
+                            onChange={(e) => handleHourChange(day, 'to', e.target.value)}
+                            disabled={businessHours[day].closed}
+                            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm disabled:bg-gray-100"
+                          />
+                          <label className="flex items-center gap-2 ml-4">
+                            <input
+                              type="checkbox"
+                              checked={businessHours[day].closed}
+                              onChange={(e) => handleHourChange(day, 'closed', e.target.checked)}
+                              className="w-4 h-4 text-blue-500 border-gray-300 rounded focus:ring-blue-500"
+                            />
+                            <span className="text-sm text-gray-600">Closed</span>
+                          </label>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Location */}
+            {/* Location Map */}
             <div className="bg-white rounded-xl border border-gray-200 p-6">
               <h2 className="text-xl font-bold text-gray-900 mb-6">Location</h2>
               
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Latitude
-                  </label>
-                  <input
-                    type="number"
-                    step="0.000001"
-                    defaultValue="37.7749"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="37.7749"
-                  />
+              <div className="space-y-4">
+                {/* Address Display */}
+                <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                  <p className="text-sm font-medium text-gray-700 mb-1">Business Address:</p>
+                  <p className="text-gray-900">
+                    {formData.streetAddress1 || "Street Address 1"}
+                    {formData.streetAddress2 && `, ${formData.streetAddress2}`}
+                  </p>
+                  <p className="text-gray-900">
+                    {formData.city || "City"}, {formData.state || "State"} {formData.zipCode || "Zip"}
+                  </p>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Longitude
-                  </label>
-                  <input
-                    type="number"
-                    step="0.000001"
-                    defaultValue="-122.4194"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="-122.4194"
-                  />
-                </div>
+
+                {/* Google Maps Embed */}
+                {(formData.streetAddress1 && formData.city && formData.state && formData.zipCode) ? (
+                  <div className="w-full h-96 rounded-lg overflow-hidden border border-gray-200">
+                    <iframe
+                      width="100%"
+                      height="100%"
+                      frameBorder="0"
+                      style={{ border: 0 }}
+                      src={`https://maps.google.com/maps?q=${encodeURIComponent(
+                        `${formData.streetAddress1}${formData.streetAddress2 ? ' ' + formData.streetAddress2 : ''}, ${formData.city}, ${formData.state} ${formData.zipCode}`
+                      )}&t=&z=15&ie=UTF8&iwloc=&output=embed`}
+                      allowFullScreen
+                      loading="lazy"
+                      referrerPolicy="no-referrer-when-downgrade"
+                      title="Business Location Map"
+                    />
+                  </div>
+                ) : (
+                  <div className="w-full h-96 rounded-lg border border-gray-200 flex items-center justify-center bg-gray-50">
+                    <div className="text-center text-gray-500">
+                      <svg className="w-16 h-16 mx-auto mb-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                      <p className="text-sm">Map will appear here once you enter a complete address</p>
+                    </div>
+                  </div>
+                )}
+
+                <p className="text-xs text-gray-500">
+                  💡 The map will update automatically when you change the address above
+                </p>
               </div>
-              <p className="text-xs text-gray-500 mt-2">
-                Enter your business location coordinates for location-based features
-              </p>
             </div>
 
             {/* Action Buttons */}
@@ -262,4 +520,3 @@ export default function BusinessInfoPage() {
     </div>
   );
 }
-

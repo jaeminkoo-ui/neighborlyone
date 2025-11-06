@@ -95,3 +95,7 @@ CREATE INDEX IF NOT EXISTS idx_saved_coupons_coupon ON saved_coupons(coupon_id);
 CREATE INDEX IF NOT EXISTS idx_impressions_coupon ON coupon_impressions(coupon_id);
 
 
+
+
+
+

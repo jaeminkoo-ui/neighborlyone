@@ -1,6 +1,102 @@
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
+import { useState, useEffect } from "react";
+import { requireAuth, getCurrentUser, getCurrentBusiness } from "../../../utils/auth";
 
 export default function NewCouponPage() {
+  const navigate = useNavigate();
+  const [user, setUser] = useState(null);
+  const [business, setBusiness] = useState(null);
+  const [mounted, setMounted] = useState(false);
+  const [loading, setLoading] = useState(false);
+  
+  const [formData, setFormData] = useState({
+    title: "",
+    description: "",
+    code: "",
+    discount_type: "percentage",
+    discount_value: "",
+    expiration_date: "",
+    terms_conditions: "",
+    is_active: true,
+  });
+
+  // Check authentication on mount
+  useEffect(() => {
+    setMounted(true);
+    const currentUser = getCurrentUser();
+    const currentBusiness = getCurrentBusiness();
+    setUser(currentUser);
+    setBusiness(currentBusiness);
+    
+    if (!currentUser) {
+      requireAuth(navigate);
+    }
+  }, [navigate]);
+
+  const handleChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    setFormData({
+      ...formData,
+      [name]: type === "checkbox" ? checked : value,
+    });
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!business?.id) {
+      alert("No business found. Please complete your business profile first.");
+      return;
+    }
+
+    // Validation
+    if (!formData.title || !formData.code || !formData.expiration_date) {
+      alert("Please fill in all required fields (Title, Code, Expiration Date)");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const response = await fetch("/api/coupons", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          business_id: business.id,
+          title: formData.title,
+          description: formData.description,
+          code: formData.code.toUpperCase(),
+          discount_type: formData.discount_type,
+          discount_value: parseFloat(formData.discount_value) || 0,
+          expiration_date: new Date(formData.expiration_date).toISOString(),
+          is_active: formData.is_active,
+          terms_conditions: formData.terms_conditions,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        alert("Coupon created successfully!");
+        navigate("/dashboard/coupons");
+      } else {
+        alert(`Error: ${result.error || "Failed to create coupon"}`);
+      }
+    } catch (error) {
+      console.error("Error creating coupon:", error);
+      alert("An error occurred while creating the coupon");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Show loading state until mounted and user is loaded
+  if (!mounted || !user || !business) {
+    return <div className="flex min-h-screen bg-gray-50 items-center justify-center">
+      <div className="text-gray-500">Loading...</div>
+    </div>;
+  }
+
   return (
     <div className="flex min-h-screen bg-gray-50">
       {/* Sidebar */}
@@ -26,38 +122,38 @@ export default function NewCouponPage() {
         <nav className="flex-1 p-4">
           <Link
             to="/dashboard"
-            className="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-gray-50 rounded-lg mb-1 transition-colors"
+            className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-50 rounded-lg mb-1 transition-colors font-medium"
           >
             <span className="text-xl">📊</span>
-            <span className="font-medium">Dashboard</span>
-          </Link>
-          <Link
-            to="/dashboard/coupons"
-            className="flex items-center gap-3 px-4 py-3 bg-blue-50 text-blue-600 rounded-lg mb-1 transition-colors"
-          >
-            <span className="text-xl">🎫</span>
-            <span className="font-medium">Coupons</span>
+            <span className="text-sm">Dashboard</span>
           </Link>
           <Link
             to="/dashboard/business-info"
-            className="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-gray-50 rounded-lg mb-1 transition-colors"
+            className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-50 rounded-lg mb-1 transition-colors font-medium"
           >
             <span className="text-xl">🏢</span>
-            <span className="font-medium">Business Info</span>
+            <span className="text-sm">Business Info</span>
+          </Link>
+          <Link
+            to="/dashboard/coupons"
+            className="flex items-center gap-3 px-4 py-3 bg-blue-50 text-blue-600 rounded-lg mb-1 transition-colors font-medium"
+          >
+            <span className="text-xl">🎫</span>
+            <span className="text-sm">Coupons</span>
           </Link>
           <Link
             to="/dashboard/analytics"
-            className="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-gray-50 rounded-lg mb-1 transition-colors"
+            className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-50 rounded-lg mb-1 transition-colors font-medium"
           >
             <span className="text-xl">📈</span>
-            <span className="font-medium">Analytics</span>
+            <span className="text-sm">Analytics</span>
           </Link>
           <Link
             to="/dashboard/settings"
-            className="flex items-center gap-3 px-4 py-3 text-gray-600 hover:bg-gray-50 rounded-lg mb-1 transition-colors"
+            className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-50 rounded-lg mb-1 transition-colors font-medium"
           >
             <span className="text-xl">⚙️</span>
-            <span className="font-medium">Settings</span>
+            <span className="text-sm">Settings</span>
           </Link>
         </nav>
 
@@ -65,16 +161,23 @@ export default function NewCouponPage() {
         <div className="p-4 border-t border-gray-200">
           <div className="flex items-center gap-3 mb-3">
             <div className="w-10 h-10 rounded-full bg-blue-500 text-white flex items-center justify-center font-bold">
-              M
+              {business?.name?.[0]?.toUpperCase() || user?.name?.[0]?.toUpperCase() || "U"}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-gray-900 truncate">Mario's Pizzeria</p>
-              <p className="text-xs text-gray-500 truncate">owner@marios.com</p>
+              <p className="text-sm font-semibold text-gray-900 truncate">{business?.name || user?.name}</p>
+              <p className="text-xs text-gray-500 truncate">{user?.email}</p>
             </div>
           </div>
-          <button className="w-full px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded-lg transition-colors">
+          <Link
+            to="/login"
+            onClick={() => {
+              localStorage.removeItem('user');
+              localStorage.removeItem('currentBusiness');
+            }}
+            className="block w-full text-center px-4 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+          >
             Sign Out
-          </button>
+          </Link>
         </div>
       </aside>
 
@@ -96,7 +199,7 @@ export default function NewCouponPage() {
           </div>
 
           {/* Form */}
-          <form className="space-y-8">
+          <form onSubmit={handleSubmit} className="space-y-8">
             {/* Coupon Details */}
             <div className="bg-white rounded-xl border border-gray-200 p-6">
               <h2 className="text-xl font-bold text-gray-900 mb-6">Coupon Details</h2>
@@ -108,6 +211,9 @@ export default function NewCouponPage() {
                   </label>
                   <input
                     type="text"
+                    name="title"
+                    value={formData.title}
+                    onChange={handleChange}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="e.g. 50% Off All Pizzas"
                   />
@@ -119,40 +225,14 @@ export default function NewCouponPage() {
                   </label>
                   <textarea
                     rows={3}
+                    name="description"
+                    value={formData.description}
+                    onChange={handleChange}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
                     placeholder="Describe the offer in detail..."
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Category *
-                  </label>
-                  <select
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  >
-                    <option value="">Select a category</option>
-                    <option value="Food">Food</option>
-                    <option value="Café">Café</option>
-                    <option value="Beauty">Beauty</option>
-                    <option value="Shopping">Shopping</option>
-                    <option value="Fitness">Fitness</option>
-                    <option value="Services">Services</option>
-                    <option value="Others">Others</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Coupon Image URL
-                  </label>
-                  <input
-                    type="url"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="https://example.com/coupon-image.jpg"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">Enter a URL for your coupon image</p>
-                </div>
               </div>
             </div>
 
@@ -166,14 +246,15 @@ export default function NewCouponPage() {
                     Discount Type *
                   </label>
                   <select
+                    name="discount_type"
+                    value={formData.discount_type}
+                    onChange={handleChange}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
-                    <option value="">Select discount type</option>
                     <option value="percentage">Percentage Off (e.g., 20% off)</option>
                     <option value="fixed_amount">Fixed Amount (e.g., $10 off)</option>
                     <option value="bogo">Buy One Get One (BOGO)</option>
                     <option value="free_item">Free Item</option>
-                    <option value="other">Other</option>
                   </select>
                 </div>
 
@@ -182,11 +263,15 @@ export default function NewCouponPage() {
                     Discount Value *
                   </label>
                   <input
-                    type="text"
+                    type="number"
+                    name="discount_value"
+                    value={formData.discount_value}
+                    onChange={handleChange}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="e.g. 50%, $10, BOGO"
+                    placeholder="e.g. 50 for 50% or 10 for $10"
+                    step="0.01"
                   />
-                  <p className="text-xs text-gray-500 mt-1">Enter the discount amount or description</p>
+                  <p className="text-xs text-gray-500 mt-1">Enter the discount amount (number only)</p>
                 </div>
 
                 <div>
@@ -195,6 +280,9 @@ export default function NewCouponPage() {
                   </label>
                   <input
                     type="text"
+                    name="code"
+                    value={formData.code}
+                    onChange={handleChange}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono"
                     placeholder="e.g. PIZZA50"
                   />
@@ -207,6 +295,9 @@ export default function NewCouponPage() {
                   </label>
                   <textarea
                     rows={3}
+                    name="terms_conditions"
+                    value={formData.terms_conditions}
+                    onChange={handleChange}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
                     placeholder="e.g. Valid for dine-in only. Cannot be combined with other offers."
                   />
@@ -225,30 +316,21 @@ export default function NewCouponPage() {
                   </label>
                   <input
                     type="date"
+                    name="expiration_date"
+                    value={formData.expiration_date}
+                    onChange={handleChange}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                   <p className="text-xs text-gray-500 mt-1">When does this coupon expire?</p>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Usage Limit
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    defaultValue="0"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="0"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">Maximum number of redemptions (0 = unlimited)</p>
                 </div>
 
                 <div className="flex items-center gap-3">
                   <input
                     type="checkbox"
                     id="is_active"
-                    defaultChecked
+                    name="is_active"
+                    checked={formData.is_active}
+                    onChange={handleChange}
                     className="w-4 h-4 text-blue-500 border-gray-300 rounded focus:ring-blue-500"
                   />
                   <label htmlFor="is_active" className="text-sm font-medium text-gray-700">
@@ -266,8 +348,12 @@ export default function NewCouponPage() {
                 <div className="bg-white rounded-lg shadow-sm p-4 max-w-md">
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex-1">
-                      <h3 className="font-bold text-gray-900 text-lg mb-1">Your Coupon Title</h3>
-                      <p className="text-sm text-gray-600">Your coupon description will appear here</p>
+                      <h3 className="font-bold text-gray-900 text-lg mb-1">
+                        {formData.title || "Your Coupon Title"}
+                      </h3>
+                      <p className="text-sm text-gray-600">
+                        {formData.description || "Your coupon description will appear here"}
+                      </p>
                     </div>
                     <span className="px-3 py-1 bg-green-100 text-green-700 text-xs font-bold rounded-full">
                       ACTIVE
@@ -275,11 +361,12 @@ export default function NewCouponPage() {
                   </div>
                   <div className="bg-gray-100 rounded p-3 mb-3">
                     <p className="text-xs text-gray-500 mb-1">COUPON CODE</p>
-                    <p className="text-lg font-mono font-bold text-gray-900">YOUR_CODE</p>
+                    <p className="text-lg font-mono font-bold text-gray-900">
+                      {formData.code || "YOUR_CODE"}
+                    </p>
                   </div>
-                  <div className="flex items-center justify-between text-xs text-gray-500">
-                    <span>📅 Expires: -</span>
-                    <span>🏷️ Category</span>
+                  <div className="text-xs text-gray-500">
+                    <span>📅 Expires: {formData.expiration_date ? new Date(formData.expiration_date).toLocaleDateString() : "-"}</span>
                   </div>
                 </div>
               </div>
@@ -289,18 +376,13 @@ export default function NewCouponPage() {
             <div className="flex items-center gap-4">
               <button
                 type="submit"
-                className="px-6 py-3 bg-blue-500 text-white rounded-lg font-medium hover:bg-blue-600 transition-colors"
+                disabled={loading}
+                className={`px-6 py-3 bg-blue-500 text-white rounded-lg font-medium hover:bg-blue-600 transition-colors ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
-                Create Coupon
-              </button>
-              <button
-                type="button"
-                className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors"
-              >
-                Save as Draft
+                {loading ? "Creating..." : "Create Coupon"}
               </button>
               <Link
-                to="/dashboard"
+                to="/dashboard/coupons"
                 className="px-6 py-3 text-gray-600 hover:text-gray-900 transition-colors"
               >
                 Cancel
@@ -312,4 +394,8 @@ export default function NewCouponPage() {
     </div>
   );
 }
+
+
+
+
 

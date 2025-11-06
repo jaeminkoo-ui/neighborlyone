@@ -1,6 +1,64 @@
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
+import { useEffect, useState } from "react";
+import { requireAuth, getCurrentUser, getCurrentBusiness, logout } from "../utils/auth";
 
 export default function DashboardPage() {
+  const navigate = useNavigate();
+  const [user, setUser] = useState(null);
+  const [business, setBusiness] = useState(null);
+  const [coupons, setCoupons] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [mounted, setMounted] = useState(false);
+
+  // Check authentication on mount
+  useEffect(() => {
+    setMounted(true);
+    const currentUser = getCurrentUser();
+    const currentBusiness = getCurrentBusiness();
+    setUser(currentUser);
+    setBusiness(currentBusiness);
+    
+    if (!currentUser) {
+      requireAuth(navigate);
+    }
+  }, [navigate]);
+
+  // Fetch coupons on mount
+  useEffect(() => {
+    if (business?.id) {
+      fetchCoupons();
+    }
+  }, [business]);
+
+  const fetchCoupons = async () => {
+    try {
+      const response = await fetch(`/api/coupons?business_id=${business.id}`);
+      const data = await response.json();
+      if (data.success) {
+        setCoupons(data.coupons || []);
+      }
+    } catch (error) {
+      console.error("Error fetching coupons:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Show loading state until mounted and user is loaded
+  if (!mounted || !user) {
+    return <div className="flex min-h-screen bg-gray-50 items-center justify-center">
+      <div className="text-gray-500">Loading...</div>
+    </div>;
+  }
+
+  // Calculate stats from actual coupon data
+  const stats = {
+    activeCoupons: coupons.filter(c => c.is_active).length,
+    totalViews: coupons.reduce((sum, c) => sum + (c.views || 0), 0),
+    totalRedeemed: coupons.reduce((sum, c) => sum + (c.redeemed || 0), 0),
+    totalSaved: coupons.reduce((sum, c) => sum + (c.saved_count || 0), 0),
+  };
+
   return (
     <div className="flex min-h-screen bg-gray-50">
       {/* Sidebar */}
@@ -25,24 +83,27 @@ export default function DashboardPage() {
         {/* Navigation */}
         <nav className="flex-1 p-4 space-y-1">
           <NavItem href="/dashboard" icon="📊" label="Dashboard" active />
-          <NavItem href="/dashboard/coupons" icon="🎫" label="Coupons" />
           <NavItem href="/dashboard/business-info" icon="🏢" label="Business Info" />
-          <NavItem href="/dashboard/analytics" icon="📈" label="Analytics" />
-          <NavItem href="/dashboard/settings" icon="⚙️" label="Settings" />
+          <NavItem href="/dashboard/coupons" icon="🎫" label="Coupons" />
+          {/* <NavItem href="/dashboard/analytics" icon="📈" label="Analytics" /> */}
+          {/* <NavItem href="/dashboard/settings" icon="⚙️" label="Settings" /> */}
         </nav>
 
         {/* User Section */}
         <div className="p-4 border-t border-gray-200">
           <div className="flex items-center gap-3 p-3 rounded-lg bg-gray-50">
             <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold">
-              M
+              {user.name?.[0]?.toUpperCase() || "U"}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-900 truncate">Mario's Pizzeria</p>
-              <p className="text-xs text-gray-500 truncate">owner@marios.com</p>
+              <p className="text-sm font-medium text-gray-900 truncate">{business?.name || user.name}</p>
+              <p className="text-xs text-gray-500 truncate">{user.email}</p>
             </div>
           </div>
-          <button className="w-full mt-2 text-sm text-red-600 hover:text-red-700 font-medium py-2">
+          <button 
+            onClick={logout}
+            className="w-full mt-2 text-sm text-red-600 hover:text-red-700 font-medium py-2"
+          >
             Sign Out
           </button>
         </div>
@@ -52,27 +113,19 @@ export default function DashboardPage() {
       <main className="flex-1 overflow-auto">
         {/* Header */}
         <header className="bg-white border-b border-gray-200 px-8 py-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-              <p className="text-gray-600 mt-1">Welcome back! Here's what's happening with your business.</p>
-            </div>
-            <Link
-              to="/dashboard/coupons/new"
-              className="bg-blue-500 text-white font-bold py-3 px-6 rounded-lg hover:bg-blue-600 transition-colors"
-            >
-              + Create Coupon
-            </Link>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+            <p className="text-gray-600 mt-1">Welcome back! Here's what's happening with your business.</p>
           </div>
         </header>
 
         {/* Stats Grid */}
         <div className="p-8">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <StatCard title="Active Coupons" value="2" change="+1 this month" icon="🎫" />
-            <StatCard title="Total Views" value="1,234" change="+15.3%" icon="👁️" />
-            <StatCard title="Redeemed" value="89" change="+23.1%" icon="✅" />
-            <StatCard title="Saved by Users" value="456" change="+18.2%" icon="💝" />
+            <StatCard title="Active Coupons" value={stats.activeCoupons.toString()} change={`${stats.activeCoupons} total`} icon="🎫" />
+            <StatCard title="Redeemed" value={stats.totalRedeemed.toString()} change={loading ? "..." : "All time"} icon="✅" />
+            <StatCard title="Neighbors" value={stats.totalViews.toLocaleString()} change={loading ? "..." : "All time"} icon="🏘️" />
+            <StatCard title="Loved" value={stats.totalSaved.toString()} change={loading ? "..." : "All time"} icon="💝" />
           </div>
 
           {/* Recent Coupons */}
@@ -84,24 +137,34 @@ export default function DashboardPage() {
               </Link>
             </div>
 
-            <div className="space-y-4">
-              <CouponCard
-                title="50% Off Pizza"
-                code="PIZZA50"
-                views={567}
-                redeemed={42}
-                expires="Dec 31, 2025"
-                status="active"
-              />
-              <CouponCard
-                title="Buy 1 Get 1 Free"
-                code="PIZZABOGO"
-                views={667}
-                redeemed={47}
-                expires="Dec 31, 2025"
-                status="active"
-              />
-            </div>
+            {loading ? (
+              <div className="text-center py-8 text-gray-500">Loading coupons...</div>
+            ) : coupons.length === 0 ? (
+              <div className="text-center py-12">
+                <p className="text-gray-500 mb-4">No coupons yet. Create your first coupon!</p>
+                <Link
+                  to="/dashboard/coupons/new"
+                  className="inline-block px-6 py-3 bg-blue-500 text-white rounded-lg font-medium hover:bg-blue-600 transition-colors"
+                >
+                  + Create Your First Coupon
+                </Link>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {coupons.slice(0, 3).map((coupon) => (
+                  <CouponCard
+                    key={coupon.id}
+                    id={coupon.id}
+                    title={coupon.title}
+                    code={coupon.code}
+                    views={coupon.views || 0}
+                    redeemed={coupon.redeemed || 0}
+                    expires={new Date(coupon.expiration_date).toLocaleDateString()}
+                    status={coupon.is_active ? "active" : "inactive"}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </main>
@@ -140,7 +203,7 @@ function StatCard({ title, value, change, icon }) {
   );
 }
 
-function CouponCard({ title, code, views, redeemed, expires, status }) {
+function CouponCard({ id, title, code, views, redeemed, expires, status }) {
   return (
     <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:border-blue-500 transition-colors">
       <div className="flex-1">
@@ -154,22 +217,20 @@ function CouponCard({ title, code, views, redeemed, expires, status }) {
           Code: <span className="font-mono font-bold">{code}</span>
         </p>
         <div className="flex items-center gap-4 text-xs text-gray-500">
-          <span>👁️ {views} views</span>
-          <span>✅ {redeemed} redeemed</span>
+          <span>👁️ {views} Views</span>
+          <span>✅ {redeemed} Redeemed</span>
           <span>📅 Expires: {expires}</span>
         </div>
       </div>
       <div className="flex items-center gap-2">
-        <button className="p-2 text-gray-600 hover:text-blue-500 transition-colors">
+        <Link
+          to={`/dashboard/coupons/${id}/edit`}
+          className="p-2 text-gray-600 hover:text-blue-500 transition-colors"
+        >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
           </svg>
-        </button>
-        <button className="p-2 text-gray-600 hover:text-red-500 transition-colors">
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-          </svg>
-        </button>
+        </Link>
       </div>
     </div>
   );

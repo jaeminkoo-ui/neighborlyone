@@ -30,6 +30,7 @@ export async function POST(request) {
         email VARCHAR(255) UNIQUE NOT NULL,
         name VARCHAR(255) NOT NULL,
         phone VARCHAR(50),
+        password_hash VARCHAR(255),
         role VARCHAR(20) DEFAULT 'customer',
         location VARCHAR(255),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -44,14 +45,20 @@ export async function POST(request) {
         owner_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
         name VARCHAR(255) NOT NULL,
         description TEXT,
-        address VARCHAR(500) NOT NULL,
+        street_address_1 VARCHAR(255) NOT NULL,
+        street_address_2 VARCHAR(255),
+        city VARCHAR(100) NOT NULL,
+        state VARCHAR(50) NOT NULL,
+        postal_code VARCHAR(20) NOT NULL,
+        country VARCHAR(2) DEFAULT 'US',
         phone VARCHAR(50),
         email VARCHAR(255),
-        hours VARCHAR(255),
-        category VARCHAR(100),
-        image_url TEXT,
-        latitude DECIMAL(10, 8),
-        longitude DECIMAL(11, 8),
+        hours JSONB,
+        category VARCHAR(100) NOT NULL,
+        cover_image_url TEXT,
+        logo_url TEXT,
+        latitude DECIMAL(10, 8) NOT NULL,
+        longitude DECIMAL(11, 8) NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
@@ -119,6 +126,8 @@ export async function POST(request) {
     await sql`CREATE INDEX idx_businesses_owner ON businesses(owner_id)`;
     await sql`CREATE INDEX idx_businesses_category ON businesses(category)`;
     await sql`CREATE INDEX idx_businesses_location ON businesses(latitude, longitude)`;
+    await sql`CREATE INDEX idx_businesses_postal_code ON businesses(postal_code)`;
+    await sql`CREATE INDEX idx_businesses_city_state ON businesses(city, state)`;
     await sql`CREATE INDEX idx_coupons_business ON coupons(business_id)`;
     await sql`CREATE INDEX idx_coupons_category ON coupons(category)`;
     await sql`CREATE INDEX idx_coupons_active ON coupons(is_active)`;
@@ -182,15 +191,21 @@ async function insertSampleData() {
 
   // Insert sample business
   const businessResult = await sql`
-    INSERT INTO businesses (owner_id, name, description, address, phone, category, hours, latitude, longitude, image_url)
+    INSERT INTO businesses (
+      owner_id, name, description, street_address_1, city, state, postal_code,
+      phone, category, hours, latitude, longitude, image_url
+    )
     VALUES (
       ${ownerId},
       'Mario''s Pizzeria',
       'Authentic Italian pizza made with fresh ingredients. Family-owned since 1985.',
-      '123 Main Street, San Francisco, CA 94102',
+      '123 Main Street',
+      'San Francisco',
+      'CA',
+      '94102',
       '(555) 123-4567',
       'Food',
-      'Mon-Sun: 11am-10pm',
+      '{"Monday":{"from":"11:00","to":"22:00","closed":false},"Tuesday":{"from":"11:00","to":"22:00","closed":false},"Wednesday":{"from":"11:00","to":"22:00","closed":false},"Thursday":{"from":"11:00","to":"22:00","closed":false},"Friday":{"from":"11:00","to":"22:00","closed":false},"Saturday":{"from":"11:00","to":"22:00","closed":false},"Sunday":{"from":"11:00","to":"22:00","closed":false}}'::jsonb,
       37.7749,
       -122.4194,
       'https://images.unsplash.com/photo-1565299624946-b28f40a0ca4b?w=400&h=200&fit=crop'
@@ -249,15 +264,21 @@ async function insertSampleData() {
 
   // Insert café business
   const cafeResult = await sql`
-    INSERT INTO businesses (owner_id, name, description, address, phone, category, hours, latitude, longitude, image_url)
+    INSERT INTO businesses (
+      owner_id, name, description, street_address_1, city, state, postal_code,
+      phone, category, hours, latitude, longitude, image_url
+    )
     VALUES (
       ${cafeOwnerId},
       'Local Brew Cafe',
       'Cozy neighborhood coffee shop with artisan coffee and fresh pastries.',
-      '456 Oak Avenue, San Francisco, CA 94103',
+      '456 Oak Avenue',
+      'San Francisco',
+      'CA',
+      '94103',
       '(555) 456-7890',
       'Café',
-      'Mon-Fri: 7am-6pm, Sat-Sun: 8am-4pm',
+      '{"Monday":{"from":"07:00","to":"18:00","closed":false},"Tuesday":{"from":"07:00","to":"18:00","closed":false},"Wednesday":{"from":"07:00","to":"18:00","closed":false},"Thursday":{"from":"07:00","to":"18:00","closed":false},"Friday":{"from":"07:00","to":"18:00","closed":false},"Saturday":{"from":"08:00","to":"16:00","closed":false},"Sunday":{"from":"08:00","to":"16:00","closed":false}}'::jsonb,
       37.7699,
       -122.4148,
       'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=400&h=200&fit=crop'
@@ -295,15 +316,21 @@ async function insertSampleData() {
   const beautySalonOwnerId = beautySalonOwnerResult[0].id;
 
   const beautySalonResult = await sql`
-    INSERT INTO businesses (owner_id, name, description, address, phone, category, hours, latitude, longitude, image_url)
+    INSERT INTO businesses (
+      owner_id, name, description, street_address_1, city, state, postal_code,
+      phone, category, hours, latitude, longitude, image_url
+    )
     VALUES (
       ${beautySalonOwnerId},
       'Style Studio',
       'Professional haircut and styling services by experienced stylists.',
-      '789 Market Street, San Francisco, CA 94104',
+      '789 Market Street',
+      'San Francisco',
+      'CA',
+      '94104',
       '(555) 234-5678',
       'Beauty',
-      'Tue-Sat: 9am-7pm',
+      '{"Monday":{"from":"09:00","to":"19:00","closed":true},"Tuesday":{"from":"09:00","to":"19:00","closed":false},"Wednesday":{"from":"09:00","to":"19:00","closed":false},"Thursday":{"from":"09:00","to":"19:00","closed":false},"Friday":{"from":"09:00","to":"19:00","closed":false},"Saturday":{"from":"09:00","to":"19:00","closed":false},"Sunday":{"from":"09:00","to":"19:00","closed":true}}'::jsonb,
       37.7858,
       -122.4064,
       'https://images.unsplash.com/photo-1560066984-138dadb4c035?w=400&h=200&fit=crop'
@@ -333,5 +360,9 @@ async function insertSampleData() {
 
   console.log("✅ Sample data inserted successfully");
 }
+
+
+
+
 
 

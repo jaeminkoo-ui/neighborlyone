@@ -22,8 +22,8 @@ import {
 import './global.css';
 
 import fetch from '@/__create/fetch';
-// @ts-ignore
-import { SessionProvider } from '@auth/create/react';
+// Removed SessionProvider - using custom auth instead
+// import { SessionProvider } from '@auth/create/react';
 import { useNavigate } from 'react-router';
 import { serializeError } from 'serialize-error';
 import { Toaster } from 'sonner';
@@ -378,7 +378,7 @@ export function Layout({ children }: { children: ReactNode }) {
         <LoadFonts />
       </head>
       <body>
-        <ClientOnly loader={() => children} />
+        {children}
         <HotReloadIndicator />
         <Toaster position="bottom-right" />
         <ScrollRestoration />
@@ -390,9 +390,6 @@ export function Layout({ children }: { children: ReactNode }) {
 }
 
 export default function App() {
-  return (
-    <SessionProvider>
-      <Outlet />
-    </SessionProvider>
-  );
+  // Using custom auth system instead of SessionProvider
+  return <Outlet />;
 }

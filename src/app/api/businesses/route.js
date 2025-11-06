@@ -94,24 +94,30 @@ export async function POST(request) {
       owner_id,
       name,
       description,
-      address,
+      street_address_1,
+      street_address_2,
+      city,
+      state,
+      postal_code,
+      country,
       phone,
       email,
       hours,
       category,
-      image_url,
+      cover_image_url,
       latitude,
       longitude,
     } = data;
 
     const result = await sql`
       INSERT INTO businesses (
-        owner_id, name, description, address, phone, email,
-        hours, category, image_url, latitude, longitude
+        owner_id, name, description, street_address_1, street_address_2, city, state, postal_code, country,
+        phone, email, hours, category, cover_image_url, latitude, longitude
       )
       VALUES (
-        ${owner_id}, ${name}, ${description || null}, ${address}, ${phone || null},
-        ${email || null}, ${hours || null}, ${category}, ${image_url || null},
+        ${owner_id}, ${name}, ${description || null}, ${street_address_1}, ${street_address_2 || null},
+        ${city}, ${state}, ${postal_code}, ${country || 'US'}, ${phone || null},
+        ${email || null}, ${hours || null}, ${category}, ${cover_image_url || null},
         ${latitude || null}, ${longitude || null}
       )
       RETURNING *
@@ -141,12 +147,17 @@ export async function PUT(request) {
       id,
       name,
       description,
-      address,
+      street_address_1,
+      street_address_2,
+      city,
+      state,
+      postal_code,
+      country,
       phone,
       email,
       hours,
       category,
-      image_url,
+      cover_image_url,
       latitude,
       longitude,
     } = data;
@@ -156,12 +167,17 @@ export async function PUT(request) {
       SET 
         name = ${name},
         description = ${description || null},
-        address = ${address},
+        street_address_1 = ${street_address_1},
+        street_address_2 = ${street_address_2 || null},
+        city = ${city},
+        state = ${state},
+        postal_code = ${postal_code},
+        country = ${country || 'US'},
         phone = ${phone || null},
         email = ${email || null},
         hours = ${hours || null},
         category = ${category},
-        image_url = ${image_url || null},
+        cover_image_url = ${cover_image_url || null},
         latitude = ${latitude || null},
         longitude = ${longitude || null},
         updated_at = CURRENT_TIMESTAMP
@@ -231,5 +247,10 @@ export async function DELETE(request) {
     );
   }
 }
+
+
+
+
+
 
 

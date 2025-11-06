@@ -28,7 +28,12 @@ export async function GET(request) {
         SELECT 
           c.*,
           b.name as business_name,
-          b.address as business_address,
+          CONCAT(b.street_address_1, ', ', b.city, ', ', b.state, ' ', b.postal_code) as business_address,
+          b.street_address_1,
+          b.street_address_2,
+          b.city,
+          b.state,
+          b.postal_code,
           b.latitude,
           b.longitude,
           b.category as business_category,
@@ -56,7 +61,12 @@ export async function GET(request) {
         SELECT 
           c.*,
           b.name as business_name,
-          b.address as business_address,
+          CONCAT(b.street_address_1, ', ', b.city, ', ', b.state, ' ', b.postal_code) as business_address,
+          b.street_address_1,
+          b.street_address_2,
+          b.city,
+          b.state,
+          b.postal_code,
           b.latitude,
           b.longitude,
           b.category as business_category,
@@ -97,5 +107,10 @@ export async function GET(request) {
     );
   }
 }
+
+
+
+
+
 
 
