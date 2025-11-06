@@ -34,7 +34,8 @@ import { useSandboxStore } from '../__create/hmr-sandbox-store';
 import type { Route } from './+types/root';
 import { useDevServerHeartbeat } from '../__create/useDevServerHeartbeat';
 
-export const links = () => [];
+// React Router v7 automatically handles CSS imports, so we don't need to override links
+// Removing empty links export to allow automatic CSS link injection
 
 if (globalThis.window && globalThis.window !== undefined) {
   globalThis.window.fetch = fetch;
