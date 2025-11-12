@@ -1,5 +1,4 @@
-import sql from "../../utils/sql.js";
-import bcrypt from "bcryptjs";
+import supabase from "../../utils/supabase.js";
 
 export async function POST(request) {
   try {
@@ -20,14 +19,13 @@ export async function POST(request) {
       );
     }
 
-    // Find user by email
-    const users = await sql`
-      SELECT id, email, name, phone, role, password_hash
-      FROM users
-      WHERE email = ${email}
-    `;
+    // Sign in with Supabase Auth
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
 
-    if (users.length === 0) {
+    if (authError) {
       return new Response(
         JSON.stringify({
           success: false,
@@ -40,61 +38,19 @@ export async function POST(request) {
       );
     }
 
-    const user = users[0];
-
-    // Check if user has password (for existing sample users without password)
-    if (!user.password_hash) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: "Account not set up with password. Please contact support.",
-        }),
-        {
-          status: 401,
-          headers: { "Content-Type": "application/json" },
-        }
-      );
-    }
-
-    // Verify password
-    const isPasswordValid = await bcrypt.compare(password, user.password_hash);
-
-    if (!isPasswordValid) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: "Invalid email or password",
-        }),
-        {
-          status: 401,
-          headers: { "Content-Type": "application/json" },
-        }
-      );
-    }
+    const user = authData.user;
 
     // Get user's businesses
-    const businesses = await sql`
-      SELECT 
-        id, 
-        name, 
-        description, 
-        street_address_1,
-        street_address_2,
-        city,
-        state,
-        postal_code,
-        phone, 
-        email,
-        category, 
-        image_url,
-        latitude,
-        longitude,
-        hours
-      FROM businesses
-      WHERE owner_id = ${user.id}
-    `;
+    const { data: businesses, error: businessError } = await supabase
+      .from('businesses')
+      .select('*')
+      .eq('user_id', user.id);
 
-    // Return user data (in production, you'd create a JWT or session here)
+    if (businessError) {
+      console.error("Error fetching businesses:", businessError);
+    }
+
+    // Return user data
     return new Response(
       JSON.stringify({
         success: true,
@@ -102,11 +58,11 @@ export async function POST(request) {
         user: {
           id: user.id,
           email: user.email,
-          name: user.name,
-          phone: user.phone,
-          role: user.role,
+          name: user.user_metadata?.name || user.email,
+          phone: user.user_metadata?.phone,
+          role: user.user_metadata?.role || 'business_owner',
         },
-        businesses: businesses,
+        businesses: businesses || [],
       }),
       {
         status: 200,

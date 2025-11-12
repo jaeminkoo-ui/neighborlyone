@@ -63,8 +63,16 @@ export default function LoginPage() {
       {/* Navigation */}
       <header className="sticky top-0 z-50 flex items-center justify-center border-b border-gray-200/50 bg-white/80 backdrop-blur-sm">
         <div className="flex items-center justify-between w-full max-w-6xl px-4 py-3">
-          <Link to="/" className="flex items-center gap-4 text-gray-900">
-            <div className="w-6 h-6 text-blue-500">
+          <Link to="/" className="flex items-center">
+            <img 
+              src="/assets/neione_logo_horigental_blue.png" 
+              alt="Neione"
+              className="h-8 object-contain"
+            />
+          </Link>
+          <Link to="/" className="text-sm font-medium text-gray-600 hover:text-blue-500 hidden">
+            {/* Hidden SVG */}
+            <div className="w-6 h-6 text-blue-500 hidden">
               <svg fill="none" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
                 <path
                   clipRule="evenodd"
@@ -74,7 +82,6 @@ export default function LoginPage() {
                 />
               </svg>
             </div>
-            <h2 className="text-lg font-bold">NeighborlyOne</h2>
           </Link>
           <Link to="/" className="text-sm font-medium text-gray-600 hover:text-blue-500">
             ← Back to Home

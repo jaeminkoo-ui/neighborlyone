@@ -1,0 +1,8 @@
+business_name,title,description,code,discount_type,discount_value,start_date,expiration_date,terms_and_conditions
+"101 Chicken","20% Off All Chicken","Get 20% discount on all menu items","CHICKEN20","percent",20,"2025-11-08","2025-12-31","Valid for dine-in and takeout. Cannot be combined with other offers."
+"101 Chicken","Free Side Dish","Get a free side dish with any combo meal","FREESIDE","free_item",0,"2025-11-08","2025-12-31","One per customer. Available for combo meals only."
+"Sunrise Cafe","$5 Off Purchase","Save $5 on orders over $20","COFFEE5","amount",5,"2025-11-08","2025-12-31","Minimum purchase $20 required."
+"Sunrise Cafe","Buy One Get One Free","Buy one coffee get one free","BOGO1","bogo",0,"2025-11-08","2025-12-15","Same or lesser value. Limited time offer."
+"Beauty Salon NYC","30% Off First Visit","New customers get 30% off their first service","FIRST30","percent",30,"2025-11-08","2025-12-31","First-time customers only. Valid for hair services."
+
+

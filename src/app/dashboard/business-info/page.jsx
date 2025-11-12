@@ -4,15 +4,14 @@ import { requireAuth, getCurrentUser, getCurrentBusiness, logout } from "../../u
 import { useNavigate } from "react-router";
 
 // NavItem component
-const NavItem = ({ href, icon, label, active }) => {
-  const baseClasses = "flex items-center gap-3 px-4 py-3 rounded-lg transition-colors font-medium";
+const NavItem = ({ href, label, active }) => {
+  const baseClasses = "flex items-center px-4 py-3 rounded-lg transition-colors font-medium";
   const activeClasses = active
-    ? "bg-blue-50 text-blue-600"
-    : "text-gray-700 hover:bg-gray-50";
+    ? "bg-blue-500 text-white"
+    : "text-gray-700 hover:bg-gray-100";
 
   return (
     <Link to={href} className={`${baseClasses} ${activeClasses}`}>
-      <span className="text-xl">{icon}</span>
       <span className="text-sm">{label}</span>
     </Link>
   );
@@ -220,24 +219,25 @@ export default function BusinessInfoPage() {
     <div className="flex h-screen bg-gray-50">
       <aside className="w-64 bg-white border-r border-gray-200 flex flex-col">
         <div className="p-6 border-b border-gray-200">
-          <Link to="/dashboard" className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-blue-500 rounded-lg"></div>
-            <span className="font-bold text-xl">NeighborlyOne</span>
+          <Link to="/dashboard" className="flex items-center justify-center">
+            <img 
+              src="/assets/neione_logo_horigental_blue.png" 
+              alt="Neione"
+              className="h-8 object-contain"
+            />
           </Link>
         </div>
 
-        <nav className="flex-1 p-4 space-y-2">
-          <NavItem href="/dashboard" icon="📊" label="Dashboard" />
-          <NavItem href="/dashboard/business-info" icon="🏢" label="Business Info" active />
-          <NavItem href="/dashboard/coupons" icon="🎫" label="Coupons" />
-          {/* <NavItem href="/dashboard/analytics" icon="📈" label="Analytics" /> */}
-          {/* <NavItem href="/dashboard/settings" icon="⚙️" label="Settings" /> */}
+        <nav className="flex-1 p-4 space-y-1">
+          <NavItem href="/dashboard" label="Dashboard" />
+          <NavItem href="/dashboard/business-info" label="Business Info" active />
+          <NavItem href="/dashboard/coupons" label="Coupons" />
         </nav>
 
-        <div className="p-4 border-t border-gray-200 space-y-3">
-          <div className="flex items-center gap-3 px-4">
-            <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold">
-              {business.name.charAt(0)}
+        <div className="p-4 border-t border-gray-200">
+          <div className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 mb-2">
+            <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold">
+              {business.name?.charAt(0) || 'B'}
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-gray-900 truncate">{business.name}</p>
@@ -246,7 +246,7 @@ export default function BusinessInfoPage() {
           </div>
           <button
             onClick={handleLogout}
-            className="w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors text-left"
+            className="w-full text-sm text-red-600 hover:text-red-700 font-medium py-2"
           >
             Sign Out
           </button>
